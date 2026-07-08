@@ -8,7 +8,11 @@ rate limiting, idempotent scheduling, and webhook status callbacks.
 Stack: **Django + Django REST Framework** for the API, the **Django ORM**
 (models + migrations) for schema and everyday reads/writes, one **raw SQL**
 statement for the claim itself (see §3.2 for why), and **PostgreSQL** as the
-only piece of infrastructure the system depends on.
+only piece of infrastructure the system depends on. **drf-spectacular**
+generates a live OpenAPI 3 schema straight from the DRF serializers/views
+(`/api/schema/`, with Swagger UI at `/api/docs/` and ReDoc at `/api/redoc/`),
+so the API surface is self-documenting rather than hand-maintained separately
+from the code.
 
 ## 1. High-level architecture
 

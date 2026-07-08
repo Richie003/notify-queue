@@ -80,6 +80,13 @@ The API is now at `http://localhost:8000/`. Quick check:
 curl http://localhost:8000/health/
 ```
 
+Interactive API docs (via `drf-spectacular`) are at:
+
+- Swagger UI: `http://localhost:8000/api/docs/` -- browse and try every
+  endpoint from the browser
+- ReDoc: `http://localhost:8000/api/redoc/`
+- Raw OpenAPI 3 schema: `http://localhost:8000/api/schema/`
+
 ## 4. Run workers -- multiple concurrent instances
 
 Each worker is a normal Django management command that polls Postgres in a
@@ -167,6 +174,9 @@ claimed and delivered by exactly one of them.
 | `GET` | `/metrics/` | `{counts_by_status, total_jobs, sent_last_hour, dead_letter_last_hour, avg_attempts_for_sent}`. |
 | `POST` | `/webhooks/mock/` | Mocked receiver the system calls on status changes (also usable as a per-job `webhook_url` override target). |
 | `GET` | `/webhooks/received/` | What the mock receiver has logged -- lets you verify callbacks landed. |
+| `GET` | `/api/docs/` | Interactive Swagger UI (try requests from the browser). |
+| `GET` | `/api/redoc/` | ReDoc-rendered API docs. |
+| `GET` | `/api/schema/` | Raw OpenAPI 3 schema (YAML). |
 
 Example:
 

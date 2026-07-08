@@ -1,6 +1,8 @@
 import logging
 
 from django.shortcuts import get_object_or_404
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import status as http_status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -8,23 +10,57 @@ from rest_framework.views import APIView
 from . import repository
 from .models import Job
 from .serializers import (
+    ErrorDetailSerializer,
+    HealthSerializer,
     JobDetailSerializer,
     JobSerializer,
+    MetricsResponseSerializer,
     ReceivedWebhookSerializer,
+    ScheduleJobResponseSerializer,
     ScheduleJobSerializer,
+    WebhookAckSerializer,
+    WebhookCallbackSerializer,
 )
 
 logger = logging.getLogger("notify_queue.api")
 
 
+@extend_schema_view(
+    get=extend_schema(tags=["Health"], operation_id="health_check", responses=HealthSerializer),
+)
 class HealthView(APIView):
     def get(self, request):
         return Response({"status": "ok"})
 
 
+@extend_schema_view(
+    get=extend_schema(
+        tags=["Jobs"],
+        summary="List / filter jobs",
+        parameters=[
+            OpenApiParameter("status", OpenApiTypes.STR, description="Filter by status, e.g. pending, sent, dead_letter"),
+            OpenApiParameter("recipient", OpenApiTypes.STR, description="Filter by exact recipient"),
+            OpenApiParameter("limit", OpenApiTypes.INT, description="Max results (default 50, capped at 500)"),
+            OpenApiParameter("offset", OpenApiTypes.INT, description="Pagination offset (default 0)"),
+        ],
+        responses=JobSerializer(many=True),
+    ),
+    post=extend_schema(
+        tags=["Jobs"],
+        summary="Schedule a notification job",
+        description=(
+            "Provide exactly one of send_at or delay_seconds (omit both to send "
+            "as soon as due). If idempotency_key matches an existing job, that "
+            "job is returned instead of creating a new one (duplicate=true, "
+            "HTTP 200 instead of 201)."
+        ),
+        request=ScheduleJobSerializer,
+        responses={201: ScheduleJobResponseSerializer, 200: ScheduleJobResponseSerializer},
+    ),
+)
 class JobsView(APIView):
-    """GET  /jobs  -- list/filter jobs
-    POST /jobs  -- schedule a new notification job
+    """GET  /jobs/  -- list/filter jobs
+    POST /jobs/  -- schedule a new notification job
     """
 
     def get(self, request):
@@ -60,12 +96,28 @@ class JobsView(APIView):
         return Response(body, status=code)
 
 
+@extend_schema_view(
+    get=extend_schema(
+        tags=["Jobs"],
+        operation_id="jobs_retrieve",
+        summary="Get job status + full event history",
+        responses={200: JobDetailSerializer, 404: ErrorDetailSerializer},
+    ),
+)
 class JobDetailView(APIView):
     def get(self, request, job_id):
         job = get_object_or_404(Job, id=job_id)
         return Response(JobDetailSerializer(job).data)
 
 
+@extend_schema_view(
+    post=extend_schema(
+        tags=["Jobs"],
+        summary="Cancel a pending/processing job",
+        request=None,
+        responses={200: JobSerializer, 404: ErrorDetailSerializer, 409: ErrorDetailSerializer},
+    ),
+)
 class CancelJobView(APIView):
     def post(self, request, job_id):
         existing = get_object_or_404(Job, id=job_id)
@@ -78,16 +130,30 @@ class CancelJobView(APIView):
         return Response(JobSerializer(job).data)
 
 
+@extend_schema_view(
+    get=extend_schema(tags=["Metrics"], operation_id="metrics_retrieve", responses=MetricsResponseSerializer),
+)
 class MetricsView(APIView):
     def get(self, request):
         return Response(repository.metrics())
 
 
+@extend_schema_view(
+    post=extend_schema(
+        tags=["Webhooks"],
+        summary="Mocked webhook receiver",
+        description=(
+            "The system calls out to this endpoint (or a per-job webhook_url "
+            "override) whenever a job's status changes to sent/failed/"
+            "dead_letter. Logs everything it receives to ReceivedWebhook so "
+            "the callback can be demonstrated end-to-end without a real 3rd "
+            "party -- see GET /webhooks/received/."
+        ),
+        request=WebhookCallbackSerializer,
+        responses=WebhookAckSerializer,
+    ),
+)
 class MockWebhookView(APIView):
-    """Mocked webhook receiver: the system calls out to this (or a per-job
-    override URL) whenever a job's status changes. Logs everything it
-    receives so the callback can be demonstrated end-to-end."""
-
     def post(self, request):
         body = request.data
         logger.info("mock webhook received: %s", body)
@@ -97,6 +163,14 @@ class MockWebhookView(APIView):
         return Response({"received": True})
 
 
+@extend_schema_view(
+    get=extend_schema(
+        tags=["Webhooks"],
+        summary="List webhook callbacks the mock receiver has logged",
+        parameters=[OpenApiParameter("limit", OpenApiTypes.INT, description="Max results (default 50)")],
+        responses=ReceivedWebhookSerializer(many=True),
+    ),
+)
 class ReceivedWebhooksView(APIView):
     def get(self, request):
         limit = int(request.query_params.get("limit", 50))

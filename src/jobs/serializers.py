@@ -2,6 +2,8 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.utils import timezone
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from .models import Job, JobEvent, ReceivedWebhook
@@ -56,6 +58,7 @@ class JobSerializer(serializers.ModelSerializer):
             "locked_by", "sent_at", "created_at", "updated_at",
         ]
 
+    @extend_schema_field(OpenApiTypes.STR)
     def get_priority(self, obj):
         name = settings.PRIORITY_NAMES.get(obj.priority)
         if name:
@@ -70,7 +73,49 @@ class JobDetailSerializer(JobSerializer):
         fields = JobSerializer.Meta.fields + ["events"]
 
 
+class ScheduleJobResponseSerializer(serializers.Serializer):
+    duplicate = serializers.BooleanField(
+        help_text="True if idempotency_key matched an existing job (no new job was created)."
+    )
+    job = JobSerializer()
+
+
 class ReceivedWebhookSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReceivedWebhook
         fields = ["id", "job_id", "status", "body", "received_at"]
+
+
+class WebhookCallbackSerializer(serializers.Serializer):
+    """Shape of the payload the system POSTs on a job status change --
+    documents jobs.webhook.fire_webhook()'s body, which the mock receiver
+    below accepts."""
+
+    job_id = serializers.CharField()
+    status = serializers.ChoiceField(choices=["sent", "failed", "dead_letter"])
+    recipient = serializers.CharField(required=False)
+    channel = serializers.CharField(required=False)
+    attempts = serializers.IntegerField(required=False)
+    last_error = serializers.CharField(required=False, allow_null=True)
+
+
+class WebhookAckSerializer(serializers.Serializer):
+    received = serializers.BooleanField()
+
+
+class HealthSerializer(serializers.Serializer):
+    status = serializers.CharField()
+
+
+class MetricsResponseSerializer(serializers.Serializer):
+    counts_by_status = serializers.DictField(
+        child=serializers.IntegerField(), help_text="e.g. {\"pending\": 3, \"sent\": 12, \"dead_letter\": 1}"
+    )
+    total_jobs = serializers.IntegerField()
+    sent_last_hour = serializers.IntegerField()
+    dead_letter_last_hour = serializers.IntegerField()
+    avg_attempts_for_sent = serializers.FloatField()
+
+
+class ErrorDetailSerializer(serializers.Serializer):
+    detail = serializers.CharField()

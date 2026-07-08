@@ -20,8 +20,9 @@ ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "*").split(",")
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.auth",  # rest_framework imports auth.models.Permission at load time
-    "django.contrib.staticfiles",  # required by DRF's browsable API renderer
+    "django.contrib.staticfiles",  # required by DRF's browsable API renderer + Swagger UI assets
     "rest_framework",
+    "drf_spectacular",
     "jobs",
 ]
 
@@ -61,6 +62,29 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
     "DEFAULT_PAGINATION_CLASS": None,
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Notify Queue API",
+    "DESCRIPTION": (
+        "Distributed delayed job & notification delivery system. Schedule a "
+        "notification for now or later; concurrent workers deliver it exactly "
+        "once, in priority order, with retries, backoff, dead-lettering, "
+        "per-recipient rate limiting, idempotent scheduling, and webhook "
+        "status callbacks. See DESIGN.md in the repo for the full write-up."
+    ),
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "SCHEMA_PATH_PREFIX": r"/(jobs|metrics|webhooks|health)",
+    "COMPONENT_SPLIT_REQUEST": True,
+    # jobs.models.Job.Status (5 values: pending/processing/sent/dead_letter/
+    # cancelled) and WebhookCallbackSerializer's plain status ChoiceField (3
+    # values: sent/failed/dead_letter) both generate a component named
+    # "status" -- naming the model-backed one explicitly resolves the clash.
+    "ENUM_NAME_OVERRIDES": {
+        "JobStatusEnum": "jobs.models.Job.Status",
+    },
 }
 
 LOGGING = {

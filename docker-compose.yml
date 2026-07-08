@@ -1,0 +1,47 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: notify
+      POSTGRES_PASSWORD: notify
+      POSTGRES_DB: notify_queue
+    ports:
+      - "5432:5432"
+    volumes:
+      - notify_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notify -d notify_queue"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    environment:
+      DATABASE_URL: postgresql://notify:notify@db:5432/notify_queue
+      DEFAULT_WEBHOOK_URL: http://api:8000/webhooks/mock/
+      DEBUG: "true"
+      ALLOWED_HOSTS: "*"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    build: .
+    command: python manage.py worker
+    environment:
+      DATABASE_URL: postgresql://notify:notify@db:5432/notify_queue
+      DEFAULT_WEBHOOK_URL: http://api:8000/webhooks/mock/
+      FAILURE_RATE: "0.3"
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+    # run: docker-compose up --scale worker=3   (to run 3 concurrent worker instances)
+
+volumes:
+  notify_pgdata:

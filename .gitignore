@@ -7,5 +7,4 @@ venv/
 *.egg-info/
 .vscode/
 .idea/
-.claude/
 db.sqlite3

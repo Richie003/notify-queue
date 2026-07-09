@@ -74,8 +74,7 @@ Interactive API docs (via `drf-spectacular`) are at:
 
 Each worker is a normal Django management command that polls Postgres in a
 loop. **Run as many as you like, in separate terminals, against the same
-database** -- this is exactly the "multiple concurrent worker instances"
-scenario the exactly-once guarantee is designed for (see DESIGN.md §3):
+database**
 
 ```bash
 # terminal 2
@@ -117,14 +116,14 @@ concurrent worker containers. Change `--scale worker=N` for more/fewer.
 
 ## 6. Seed sample data
 
-With the API running (either from §3 or §5):
+With the API running:
 
 ```bash
 python seed.py
 # or: python seed.py --base-url http://localhost:8000
 ```
 
-This creates ~17 jobs covering every feature worth demoing: mixed priorities,
+This creates 17 jobs covering every feature: mixed priorities,
 a couple of future-scheduled (not-yet-due) jobs, a duplicate `idempotency_key`
 submission (to show it's recognized instead of creating a second job), and a
 burst of 8 jobs to the same recipient (to show rate limiting queue instead of

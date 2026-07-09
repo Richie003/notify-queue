@@ -49,23 +49,6 @@ CREATE USER notify WITH PASSWORD 'notify';
 CREATE DATABASE notify_queue OWNER notify;
 ```
 
-**If Docker Desktop won't start on Windows** (`... dockerDesktopLinuxEngine ...` /
-WSL2 kernel errors, especially if your org disables the "update WSL2 kernel via
-Windows Update" policy): rather than fighting WSL2, grab the portable,
-no-install-required Postgres binaries EDB publishes --
-`postgresql-<version>-windows-x64-binaries.zip` from
-https://www.enterprisedb.com/download-postgresql-binaries -- unzip anywhere,
-then:
-
-```powershell
-.\pgsql\bin\initdb.exe -D .\pgdata -U notify --pwfile=pwfile.txt -A md5
-.\pgsql\bin\pg_ctl.exe -D .\pgdata -l pg.log start
-.\pgsql\bin\createdb.exe -h localhost -U notify notify_queue
-```
-
-No admin rights or system changes needed. This is exactly how this project's
-own test suite and demo were run and verified during development.
-
 ## 3. Migrate and run the API
 
 ```bash
